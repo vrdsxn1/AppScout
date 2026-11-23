@@ -10,6 +10,7 @@ __pycache__/
 .pytest_cache/
 output/*.tmp
 output/*.lock
+output/scrapedo_cache/
 
 # Historical rendered backup; the current report is output/index.html
 output/index_pre_expansion_backup.html

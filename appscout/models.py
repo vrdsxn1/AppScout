@@ -35,6 +35,7 @@ class EvidenceRecord(BaseModel):
         "supported", "partially_supported", "unsupported", "source_unavailable", "unclear"
     ] | None = None
     review_method: str | None = None
+    reviewer_notes: str | None = None
 
     @field_validator("claim", "source_type")
     @classmethod

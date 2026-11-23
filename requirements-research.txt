@@ -1,3 +1,3 @@
-# Optional dependencies for the legacy Firecrawl research agent only.
+# Optional dependencies for the public-page research fetcher and legacy agent.
 requests>=2.31,<3.0
 python-dotenv>=1.0,<2.0

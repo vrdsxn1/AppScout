@@ -1,87 +1,79 @@
-﻿# AppScout
+# AppScout
 
-AppScout assesses how ready software applications are to integrate with AI agents. The project records API and authentication details, access requirements, MCP availability, integration blockers, and source evidence for the 100 applications in the Composio take-home assignment.
+AppScout assesses the integration readiness of the 100 software applications in the Composio Product Operations Intern take-home assignment. It organizes sourced research on APIs, authentication, access requirements, MCP availability, limitations, and blockers, then presents the findings in a self-contained report.
 
-## Submission status
+## Final deliverables
 
-All 100 assignment apps have an ordered record in `output/research_results_free.json`. This is **record coverage**, not complete research coverage:
+- `output/research_results_merged.json` is the authoritative 100-app dataset in assignment order. It merges the original research with the later Scrape.do research while retaining original evidence and review metadata.
+- `output/index.html` is the final report. The repository-root `index.html` is its GitHub Pages entry point; both are generated from the same dataset.
+- `output/analysis.json` contains machine-readable report summaries.
+- `output/merge_audit.md` documents per-app merge decisions and provenance.
+- `output/human_verification_error_analysis.md` describes observed weaknesses in the reviewed claims and the classifier changes.
+- `output/scrapedo_manual_verification_sample.csv` preserves the completed review worksheet; `output/scrapedo_manual_verification_import_ready.csv` is the normalized import copy used to apply the same reviewer verdicts and notes.
 
-- 46 of 100 apps have at least one readable evidence excerpt (13 existing records plus 33 records with excerpts from the free public-page pass).
-- The 33 new records with evidence are marked partial; 14 are blocked and 40 have no usable research from that pass. New-app statuses sum to 87.
-- A readable excerpt means only that text was retrieved and passed a local readability check. It does not establish that every associated claim is true. New claims remain unverified.
-- The original 13 records and their evidence are preserved unchanged from `output/research_results_v2.json`.
-- The human review covered 15 claims across Salesforce, HubSpot, and Pipedrive. All 15 were marked supported. This is a small manually reviewed sample, **not an overall accuracy rate**.
-- The remaining 87 apps were attempted through free public pages without paid services. Firecrawl credits were exhausted, blocked pages and robots restrictions were respected, and no login, paywall, rate limit, or challenge was bypassed.
+## Findings and limits
 
-## Build and validate on Windows
+The report calculates 13 researched, 33 partially researched, 14 blocked, and 40 not-researched app records. These labels describe the available records; they do not mean every field of a researched app is complete. The current local excerpt classifier identifies readable evidence for 52 apps across 356 evidence records and 225 distinct URLs. Readable or `usable` evidence is not proof that a claim is correct; automated claim status and human verdicts are displayed separately.
 
-Use Python 3.11 or newer. From the project root:
+The later Scrape.do sample contains 20 manually reviewed claims: 12 supported, 7 unsupported, and 1 unclear. The original 15 manually supported claims across Salesforce, HubSpot, and Pipedrive are also retained. These are small review samples, not overall accuracy estimates. The full app list is present, but research remains incomplete. In particular, Scrape.do explicitly disallowed the Stripe API documentation URL used in the smoke test; that URL was not retried. Blocked, unknown, unverified, and not-researched states remain distinct.
+
+## Rebuild the report
+
+Python 3.11 or newer and the dependencies in `requirements.txt` are sufficient for local validation and report generation. From the project root:
 
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python scripts/validate_app_list.py
-python scripts/validate_project.py
-python scripts/test_evidence_quality.py
-python -m compileall -q appscout scripts examples
 python scripts/build_report.py
 ```
 
-`build_report.py` validates and summarizes local files, then rebuilds:
-
-- `output/index.html` — self-contained, responsive case study. Open directly in a browser.
-- `output/analysis.json` — machine-readable coverage and descriptive summaries.
-
-To open the report:
+The build validates all 100 records against the Pydantic schema and regenerates `output/index.html`, root `index.html`, and `output/analysis.json` from `output/research_results_merged.json`. It does not make network requests. Open the report locally with:
 
 ```powershell
 Start-Process .\output\index.html
 ```
 
-The report embeds its CSS and JavaScript. It has no CDN or external runtime dependency, so the report itself works offline. Evidence links require an internet connection when opened.
+The report embeds its CSS and JavaScript and works offline. Opening evidence links requires an internet connection.
 
-## Data and provenance
+## Local validation and review workflow
 
-- `data/apps.csv` contains the exact 100-app assignment list, categories, order, and assignment source URL.
-- `output/research_results.json` is the original baseline; `output/research_results_v2.json` contains the first 13 researched records, including the 15 manually supported evidence entries.
-- `output/research_results_free.json` contains all 100 records in assignment order. The first 13 records are preserved exactly from v2. Later records contain the results and access notes from the free public-page pass; unknown, blocked, and unverified values remain explicit.
-- `output/manual_verification_sample.csv` is the completed 15-claim worksheet. `output/manual_verification_summary.md` describes its scope.
-- `output/additional_manual_review_sample.csv` is an optional 15-claim worksheet drawn from readable excerpts in newly researched records. Its human verdict and reviewer notes are blank; it records no review outcomes.
-- `output/expansion_quality_audit.md` documents weaknesses in the earlier ten-app expansion. `output/evidence_extraction_test.json` is the isolated Attio/Twenty extraction experiment and does not replace v2.
-- `output/index_pre_expansion_backup.html` is a backup of the prior report.
+These commands run local checks only:
 
-Coverage and pattern summaries are descriptive. API/auth/access groupings and blocker themes use local categorization of stored text. Evidence readability is not claim verification. Report generation does not make network requests or modify the source research datasets or completed review worksheet.
+```powershell
+python scripts/test_merge_research_datasets.py
+python scripts/test_evidence_quality.py
+python scripts/test_reviewed_evidence_quality.py
+python scripts/test_scrapedo_verification.py
+python scripts/verify_scrapedo_sample.py
+python -m compileall -q appscout scripts
+```
 
-## Free public-page fetcher
+The verification command is read-only unless `--apply` is supplied. It keeps automated evidence quality and claim status separate from human verdicts. The report builder also checks that the 100-app order, the original 13 records and 15 supported claims, and the 20 Scrape.do review results remain represented.
 
-`requirements-research.txt` lists `requests` for the optional free fetcher. Install it only if you want to resume public-page collection:
+## Optional public-page fetcher
+
+The Scrape.do fetcher is optional and is not needed to build or view the submission. It uses the token in the project-root `.env` as `SCRAPEDO_API_TOKEN`; `.env` is ignored by Git. To install its separate dependencies and manually run the three-URL smoke test:
 
 ```powershell
 python -m pip install -r requirements-research.txt
-python scripts/run_free_research.py --limit 1
+python scripts/smoke_test_scrapedo.py
 ```
 
-The fetcher reads official-site URL seeds, obeys robots.txt, spaces requests by host, uses timeouts, does not retry HTTP 403/429, and saves after each attempted page. It resumes from `output/research_results_free.json`; use `--max-pages-per-app` to control the bounded pages per app. It does not need a Firecrawl key and does not guarantee a complete research record. Inspect the output and rebuild the report after a run.
-
-Legacy Firecrawl scripts are retained for project history and are excluded from the final runnable workflow. Do not run them without available credits and explicit authorization.
+The test is not run by validation or report generation. `scripts/test_scrapedo.py <URL>` tests one URL. Research runs use official/public URL seeds, robots checks, request spacing, timeouts, a local cache, incremental saves, and bounded controls such as `--limit` and `--render`. Do not use the fetcher to bypass logins, paywalls, rate limits, or source access restrictions. Retrieved text does not automatically support a claim. Legacy Firecrawl scripts remain for project history; the final report workflow does not depend on Firecrawl.
 
 ## Project map
 
-```text
-appscout/models.py                    Pydantic schemas for app records and evidence
-appscout/analytics.py                 Local coverage and pattern summaries
-appscout/evidence_quality.py          Conservative excerpt readability classifier
-data/apps.csv                        Assignment app list
-scripts/run_free_research.py          Optional polite public-page reader
-scripts/validate_app_list.py          Checks exact assignment list structure
-scripts/validate_project.py           Checks record validity and preservation
-scripts/test_evidence_quality.py      Offline classifier examples
-scripts/build_report.py               Builds the report and analysis from local data
-output/research_results_free.json     100 ordered app records
-output/index.html                     Final self-contained case study
-```
-
-## Limitations
-
-The 100-app list is complete, but the research is not. Many fields are unknown or unclear, and 54 apps lack evidence that meets the report's readable-excerpt coverage definition. The manually reviewed 15 claims are the only human-verification results reported. No overall accuracy metric is available. No Git remote or deployment configuration is present in this workspace, so the report is prepared locally and has not been published.
+| Path | Purpose |
+| --- | --- |
+| `data/apps.csv` | Exact assignment app names, categories, source URL, and order |
+| `appscout/models.py` | Pydantic models for app records and evidence |
+| `appscout/evidence_quality.py` | Conservative local excerpt-quality checks |
+| `appscout/analytics.py` | Coverage and descriptive pattern summaries |
+| `appscout/verification.py` | Human worksheet validation and verdict import helpers |
+| `appscout/scrapedo_client.py` | Optional Scrape.do HTTP adapter |
+| `scripts/merge_research_datasets.py` | Reproducible merge and preservation checks |
+| `scripts/build_report.py` | Builds the report and analysis from the merged dataset |
+| `scripts/run_free_research.py` | Optional, incremental public-page research runner |
+| `output/research_results_merged.json` | Final authoritative research dataset |
+| `output/index.html` | Self-contained final case study |

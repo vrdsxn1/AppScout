@@ -16,6 +16,14 @@ def contains_unknown(value: Any) -> bool:
     )
 
 
+def research_status(record: dict[str, Any]) -> str:
+    """Normalize absent/null status without treating empty evidence as research."""
+    explicit = record.get("research_status")
+    if explicit in {"researched", "partial", "blocked", "not_researched"}:
+        return explicit
+    return "researched" if record.get("evidence") else "not_researched"
+
+
 def api_bucket(value: str) -> str:
     text = value.strip().lower()
     if contains_unknown(text):
@@ -85,23 +93,39 @@ def blocker_topics(records: list[dict[str, Any]]) -> Counter[str]:
 def analyze(records: list[dict[str, Any]], app_rows: list[dict[str, str]]) -> dict[str, Any]:
     """Summarize records without treating evidence retrieval as verification."""
     record_by_name = {row["app_name"].strip().casefold(): row for row in records}
-    researched_names = {
-        name for name, record in record_by_name.items()
-        if record.get("research_status", "researched" if record.get("evidence") else "not_researched") in {"researched", "partial"}
-    }
     categories = Counter(row["category"].strip() for row in app_rows)
     coverage = []
     for category, total in categories.items():
-        researched = sum(
-            1 for row in app_rows
-            if row["category"].strip() == category and row["app_name"].strip().casefold() in researched_names
+        category_records = [
+            row for row in app_rows
+            if row["category"].strip() == category
+            and row["app_name"].strip().casefold() in record_by_name
+        ]
+        category_status_counts = Counter(
+            research_status(record_by_name[row["app_name"].strip().casefold()])
+            for row in category_records
         )
-        coverage.append({"category": category, "total": total, "researched": researched, "remaining": total - researched})
+        researched = category_status_counts["researched"]
+        partial = category_status_counts["partial"]
+        blocked = category_status_counts["blocked"]
+        not_researched = category_status_counts["not_researched"]
+        covered = researched + partial
+        coverage.append({
+            "category": category,
+            "total": total,
+            "researched": researched,
+            "partial": partial,
+            "blocked": blocked,
+            "not_researched": not_researched,
+            "covered": covered,
+            "remaining": total - covered,
+        })
     coverage.sort(key=lambda row: (-row["total"], row["category"]))
 
     verdicts = Counter(e.get("human_verdict") or "not reviewed" for r in records for e in r.get("evidence", []))
     automated = Counter(e.get("claim_supported", "unverified") for r in records for e in r.get("evidence", []))
     evidence_quality = Counter()
+    current_excerpt_quality = Counter()
     evidence_missing_excerpt = 0
     evidence_missing_title = 0
     evidence_missing_field = 0
@@ -112,11 +136,14 @@ def analyze(records: list[dict[str, Any]], app_rows: list[dict[str, str]]) -> di
             if evidence.get("excerpt"):
                 quality = evidence.get("evidence_quality")
                 if quality is None:
-                    quality, _ = classify_excerpt(evidence["excerpt"])
+                    quality = "insufficient"
+                current_quality, _ = classify_excerpt(evidence["excerpt"])
             else:
                 quality = "insufficient"
+                current_quality = "insufficient"
                 evidence_missing_excerpt += 1
             evidence_quality[quality] += 1
+            current_excerpt_quality[current_quality] += 1
             evidence_missing_title += not bool(evidence.get("source_title"))
             evidence_missing_field += not bool(evidence.get("field"))
 
@@ -140,7 +167,7 @@ def analyze(records: list[dict[str, Any]], app_rows: list[dict[str, str]]) -> di
                     state = "evidence present; unverified"
                 else:
                     state = "source incomplete / unverified"
-            elif record.get("research_status") in {"not_researched", "blocked"}:
+            elif research_status(record) in {"not_researched", "blocked"}:
                 state = "not established in this pass"
             else:
                 state = "no field-linked evidence"
@@ -158,14 +185,14 @@ def analyze(records: list[dict[str, Any]], app_rows: list[dict[str, str]]) -> di
     return {
         "assignment_total": len(app_rows),
         "record_total": len(records),
-        "researched_total": sum(1 for r in records if r.get("research_status", "researched" if r.get("evidence") else "not_researched") in {"researched", "partial"}),
+        "researched_total": sum(1 for r in records if research_status(r) == "researched"),
         "partial_total": sum(1 for r in records if r.get("research_status") == "partial"),
         "blocked_total": sum(1 for r in records if r.get("research_status") == "blocked"),
-        "not_researched_total": sum(1 for r in records if r.get("research_status", "researched" if r.get("evidence") else "not_researched") == "not_researched"),
-        "unresearched_total": max(0, len(app_rows) - sum(1 for r in records if r.get("research_status", "researched" if r.get("evidence") else "not_researched") in {"researched", "partial"})),
-        "apps_with_usable_evidence": sum(1 for r in records if any(e.get("retrieval_status") == "retrieved" and e.get("excerpt") and (e.get("evidence_quality") == "usable" or (not e.get("evidence_quality") and classify_excerpt(e.get("excerpt"))[0] == "usable")) for e in r.get("evidence", []))),
+        "not_researched_total": sum(1 for r in records if research_status(r) == "not_researched"),
+        "unresearched_total": sum(1 for r in records if research_status(r) == "not_researched"),
+        "apps_with_usable_evidence": sum(1 for r in records if any(e.get("retrieval_status") == "retrieved" and e.get("excerpt") and classify_excerpt(e.get("excerpt"))[0] == "usable" for e in r.get("evidence", []))),
         "apps_with_evidence": sum(1 for r in records if any(e.get("excerpt") for e in r.get("evidence", []))),
-        "coverage_percent": round((sum(1 for r in records if r.get("research_status", "researched" if r.get("evidence") else "not_researched") in {"researched", "partial"}) / len(app_rows) * 100) if app_rows else 0, 1),
+        "coverage_percent": round((sum(1 for r in records if research_status(r) in {"researched", "partial"}) / len(app_rows) * 100) if app_rows else 0, 1),
         "category_coverage": coverage,
         "field_status": field_status,
         "auth_families": auth_counts,
@@ -176,6 +203,7 @@ def analyze(records: list[dict[str, Any]], app_rows: list[dict[str, str]]) -> di
         "unknown_fields": unknown_counts,
         "evidence_total": evidence_count,
         "evidence_quality": evidence_quality,
+        "current_excerpt_quality": current_excerpt_quality,
         "evidence_missing_excerpt": evidence_missing_excerpt,
         "evidence_missing_title": evidence_missing_title,
         "evidence_missing_field": evidence_missing_field,

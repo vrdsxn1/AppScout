@@ -1,73 +1,113 @@
 {
   "assignment_total": 100,
   "record_total": 100,
-  "researched_total": 46,
+  "researched_total": 13,
   "partial_total": 33,
   "blocked_total": 14,
   "not_researched_total": 40,
-  "unresearched_total": 54,
-  "apps_with_usable_evidence": 46,
-  "apps_with_evidence": 47,
+  "unresearched_total": 40,
+  "apps_with_usable_evidence": 52,
+  "apps_with_evidence": 60,
   "coverage_percent": 46.0,
   "category_coverage": [
     {
       "category": "AI, Research and Media-native",
       "total": 10,
-      "researched": 3,
+      "researched": 0,
+      "partial": 3,
+      "blocked": 1,
+      "not_researched": 6,
+      "covered": 3,
       "remaining": 7
     },
     {
       "category": "CRM and Sales",
       "total": 10,
       "researched": 10,
+      "partial": 0,
+      "blocked": 0,
+      "not_researched": 0,
+      "covered": 10,
       "remaining": 0
     },
     {
       "category": "Communications and Messaging",
       "total": 10,
-      "researched": 2,
+      "researched": 0,
+      "partial": 2,
+      "blocked": 0,
+      "not_researched": 8,
+      "covered": 2,
       "remaining": 8
     },
     {
       "category": "Data, SEO and Scraping",
       "total": 10,
-      "researched": 2,
+      "researched": 0,
+      "partial": 2,
+      "blocked": 1,
+      "not_researched": 7,
+      "covered": 2,
       "remaining": 8
     },
     {
       "category": "Developer, Infra and Data platforms",
       "total": 10,
-      "researched": 9,
+      "researched": 0,
+      "partial": 9,
+      "blocked": 0,
+      "not_researched": 1,
+      "covered": 9,
       "remaining": 1
     },
     {
       "category": "Ecommerce",
       "total": 10,
-      "researched": 6,
+      "researched": 0,
+      "partial": 6,
+      "blocked": 3,
+      "not_researched": 1,
+      "covered": 6,
       "remaining": 4
     },
     {
       "category": "Finance and Fintech",
       "total": 10,
-      "researched": 1,
+      "researched": 0,
+      "partial": 1,
+      "blocked": 3,
+      "not_researched": 6,
+      "covered": 1,
       "remaining": 9
     },
     {
       "category": "Marketing, Ads, Email and Social",
       "total": 10,
-      "researched": 2,
+      "researched": 0,
+      "partial": 2,
+      "blocked": 3,
+      "not_researched": 5,
+      "covered": 2,
       "remaining": 8
     },
     {
       "category": "Productivity and Project Management",
       "total": 10,
-      "researched": 4,
+      "researched": 0,
+      "partial": 4,
+      "blocked": 3,
+      "not_researched": 3,
+      "covered": 4,
       "remaining": 6
     },
     {
       "category": "Support and Helpdesk",
       "total": 10,
-      "researched": 7,
+      "researched": 3,
+      "partial": 4,
+      "blocked": 0,
+      "not_researched": 3,
+      "covered": 7,
       "remaining": 3
     }
   ],
@@ -78,32 +118,28 @@
       "evidence present; unverified": 7
     },
     "auth_methods": {
-      "human sample supported": 3,
-      "no field-linked evidence": 27,
-      "not established in this pass": 54,
-      "evidence present; unverified": 16
+      "no field-linked evidence": 29,
+      "not established in this pass": 49,
+      "evidence present; unverified": 14,
+      "human sample supported": 8
     },
     "access_model": {
-      "human sample supported": 3,
-      "no field-linked evidence": 9,
+      "no field-linked evidence": 12,
       "explicitly unknown / unclear": 84,
       "evidence present; unverified": 4
     },
     "api_type": {
-      "human sample supported": 3,
-      "no field-linked evidence": 10,
+      "no field-linked evidence": 13,
       "explicitly unknown / unclear": 76,
       "evidence present; unverified": 11
     },
     "api_breadth": {
-      "human sample supported": 3,
-      "no field-linked evidence": 10,
+      "no field-linked evidence": 13,
       "explicitly unknown / unclear": 71,
       "evidence present; unverified": 16
     },
     "mcp_status": {
-      "human sample supported": 3,
-      "no field-linked evidence": 10,
+      "no field-linked evidence": 13,
       "explicitly unknown / unclear": 84,
       "evidence present; unverified": 3
     },
@@ -113,8 +149,9 @@
     },
     "blockers": {
       "no field-linked evidence": 29,
-      "not established in this pass": 54,
-      "evidence present; unverified": 17
+      "not established in this pass": 51,
+      "evidence present; unverified": 17,
+      "human sample supported": 3
     }
   },
   "auth_families": {
@@ -156,27 +193,141 @@
     "mcp_status": 84,
     "buildability": 87
   },
-  "evidence_total": 311,
+  "evidence_total": 356,
   "evidence_quality": {
-    "usable": 238,
-    "insufficient": 37,
-    "navigation": 22,
-    "page_shell": 14
+    "insufficient": 153,
+    "usable": 203
+  },
+  "current_excerpt_quality": {
+    "usable": 255,
+    "insufficient": 38,
+    "navigation": 24,
+    "page_shell": 39
   },
   "evidence_missing_excerpt": 0,
   "evidence_missing_title": 0,
-  "evidence_missing_field": 134,
+  "evidence_missing_field": 149,
   "human_verdicts": {
-    "supported": 15,
-    "not reviewed": 296
+    "supported": 27,
+    "not reviewed": 321,
+    "unsupported": 7,
+    "unclear": 1
   },
   "automated_claim_status": {
-    "unverified": 311
+    "unverified": 356
   },
   "source_attempt_status": {
-    "retrieved": 253,
-    "error": 17,
-    "blocked_robots": 4,
+    "retrieved": 345,
+    "error": 77,
+    "blocked_robots": 7,
     "inaccessible": 6
+  },
+  "app_research_status": {
+    "researched": 13,
+    "not_researched": 40,
+    "partial": 33,
+    "blocked": 14
+  },
+  "unique_evidence_source_urls": 225,
+  "retrieved_evidence_records": 356,
+  "human_review_samples": {
+    "scrapedo_20_claim_sample": {
+      "unsupported": 7,
+      "supported": 12,
+      "unclear": 1
+    },
+    "original_v2_15_claim_sample": {
+      "supported": 15
+    }
+  },
+  "merge_summary": {
+    "original_evidence": 311,
+    "scrapedo_evidence": 356,
+    "added": 45,
+    "deduplicated": 311,
+    "conflict_apps": 24,
+    "attempts": 435,
+    "conflicting_fields_by_app": {
+      "Slack": [
+        "access_model"
+      ],
+      "Twilio": [
+        "api_breadth"
+      ],
+      "Pumble": [
+        "access_model"
+      ],
+      "Telegram": [
+        "blockers"
+      ],
+      "Google Ads": [
+        "blockers",
+        "mcp_status"
+      ],
+      "GoHighLevel": [
+        "api_breadth"
+      ],
+      "Mailchimp": [
+        "access_model"
+      ],
+      "Klaviyo": [
+        "blockers"
+      ],
+      "SendGrid": [
+        "api_breadth"
+      ],
+      "Magento (Adobe Commerce)": [
+        "api_type"
+      ],
+      "Apify": [
+        "api_breadth",
+        "auth_methods",
+        "blockers"
+      ],
+      "Firecrawl": [
+        "auth_methods"
+      ],
+      "GitHub": [
+        "api_breadth",
+        "api_type"
+      ],
+      "Vercel": [
+        "api_breadth",
+        "api_type"
+      ],
+      "Supabase": [
+        "api_breadth"
+      ],
+      "Sentry": [
+        "auth_methods",
+        "blockers"
+      ],
+      "Notion": [
+        "auth_methods"
+      ],
+      "Linear": [
+        "blockers"
+      ],
+      "Monday.com": [
+        "blockers"
+      ],
+      "Coda": [
+        "api_breadth",
+        "auth_methods",
+        "mcp_status"
+      ],
+      "Plaid": [
+        "mcp_status"
+      ],
+      "Ramp": [
+        "api_breadth"
+      ],
+      "Devin": [
+        "access_model"
+      ],
+      "Grain": [
+        "access_model"
+      ]
+    }
   }
 }

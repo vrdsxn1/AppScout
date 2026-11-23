@@ -8,9 +8,9 @@ URLs. Search-result pages are not scraped; unknowns stay unknown.
 
 import argparse
 import csv
+import hashlib
 import html
 import json
-import random
 import re
 import sys
 import threading
@@ -18,7 +18,7 @@ import time
 from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urldefrag, urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import requests
@@ -27,6 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 from appscout.evidence_quality import classify_excerpt
 from appscout.models import AppResearchRecord
+from appscout.scrapedo_client import ScrapeDoError, ScrapeDoHTTPError, fetch_page, get_token, scrape_do_diagnostics
 
 APP_LIST = PROJECT_ROOT / "data" / "apps.csv"
 BASELINE_V2 = PROJECT_ROOT / "output" / "research_results_v2.json"
@@ -35,6 +36,8 @@ USER_AGENT = "AppScoutTakeHomeResearch/1.0 (polite public documentation reader)"
 PER_HOST_DELAY = 1.0
 MAX_PAGES_PER_APP = 5
 TIMEOUT = (8, 18)
+CACHE_DIR = PROJECT_ROOT / "output" / "scrapedo_cache"
+DEFAULT_CREDIT_CAP = 150
 
 # Candidate destinations only. A URL is used as evidence only after a public
 # page is fetched successfully and its title/text is consistent with the app.
@@ -106,7 +109,9 @@ SITE_URLS = {
     "Coda": "https://coda.io/developers/apis/v1",
     "Smartsheet": "https://developers.smartsheet.com/api/smartsheet/introduction",
     "Harvest": "https://harvestapp.com/api-v2",
-    "Stripe": "https://docs.stripe.com/api",
+    # The docs.stripe.com API page was explicitly blocked by Scrape.do. This
+    # alternate is Stripe's official SDK repository; do not retry that page.
+    "Stripe": "https://github.com/stripe/stripe-python",
     "Plaid": "https://plaid.com/docs/api/",
     "Binance": "https://developers.binance.com/docs/binance-spot-api-docs",
     "Paygent Connect": "https://www.paygent.co.jp/",
@@ -137,6 +142,27 @@ ALIASES = {
     "Mermaid CLI": ["mermaid", "mermaid cli"], "YouTube Transcript": ["youtube transcript", "transcript"],
     "Paygent Connect": ["paygent", "paygent connect"], "iPayX": ["ipayx"],
 }
+
+BLOCKED_SOURCE_LIMITATIONS = {
+    "Stripe": (
+        "https://docs.stripe.com/api",
+        "Scrape.do returned HTTP 400 and explicitly disallowed this target during the user-reported smoke test; do not retry it.",
+    ),
+}
+
+
+class ResearchBudgetReached(RuntimeError):
+    """Raised before a Scrape.do request when this run's budget is exhausted."""
+
+
+def scrapedo_attempted(record: dict) -> set[str]:
+    """Only skip URLs already attempted through Scrape.do, not the old direct fetcher."""
+    return {
+        str(item["url"])
+        for item in record.get("source_attempts", [])
+        if str(item.get("note") or "").startswith("Scrape.do:")
+        and "retrying once with Markdown" not in str(item.get("note") or "")
+    }
 
 
 class MainContentParser(HTMLParser):
@@ -202,12 +228,74 @@ class MainContentParser(HTMLParser):
 
 
 class PoliteFetcher:
-    def __init__(self):
+    def __init__(self, render: bool = False, credit_cap: float = DEFAULT_CREDIT_CAP,
+                 max_requests: int = 100, ledger_path: Path | None = None):
+        self.render = render
+        self.credit_cap = credit_cap
+        self.max_requests = max_requests
+        self.ledger_path = ledger_path or (PROJECT_ROOT / "output" / "scrapedo_run_ledger.json")
+        if self.ledger_path.exists():
+            self.ledger = json.loads(self.ledger_path.read_text(encoding="utf-8"))
+        else:
+            self.ledger = {"credits_spent": 0.0, "requests_made": 0,
+                           "reported_credits_spent": 0.0,
+                           "unknown_cost_requests": 0, "last_remaining_credits": None,
+                           "calls": []}
+        self.ledger.setdefault("calls", [])
+        self.ledger.setdefault("credits_spent", 0.0)
+        self.ledger.setdefault("requests_made", 0)
+        self.ledger.setdefault("unknown_cost_requests", 0)
+        self.ledger.setdefault("reported_credits_spent", 0.0)
+        self.ledger.setdefault("last_remaining_credits", None)
+        self.ledger["credit_cap"] = credit_cap
+        self.ledger["max_requests"] = max_requests
         self.robots: dict[str, tuple[bool, RobotFileParser | None]] = {}
         self.last_request: dict[str, float] = {}
         self.domain_locks: dict[str, threading.Lock] = {}
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT, "Accept": "text/html,application/json,text/plain;q=0.9,*/*;q=0.5"})
+
+    def save_ledger(self):
+        self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.ledger_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.ledger, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        tmp.replace(self.ledger_path)
+
+    def ensure_budget(self):
+        if self.ledger["requests_made"] >= self.max_requests:
+            raise ResearchBudgetReached(f"request cap {self.max_requests} reached")
+        if self.ledger["credits_spent"] + 1 > self.credit_cap:
+            raise ResearchBudgetReached(f"credit cap {self.credit_cap:g} reached")
+
+    def record_api_call(self, url: str, outcome: str, diagnostics: dict):
+        cost_text = diagnostics.get("request_cost")
+        try:
+            cost = float(cost_text) if cost_text is not None else None
+        except (TypeError, ValueError):
+            cost = None
+        # If the service omits the cost header, reserve one credit so that an
+        # unreported request cannot silently make the batch appear free.
+        charged = cost if cost is not None and cost >= 0 else 1.0
+        if cost is None:
+            self.ledger["unknown_cost_requests"] += 1
+        else:
+            self.ledger["reported_credits_spent"] = round(
+                self.ledger["reported_credits_spent"] + cost, 4
+            )
+        self.ledger["credits_spent"] = round(self.ledger["credits_spent"] + charged, 4)
+        remaining = diagnostics.get("remaining_credits")
+        if remaining is not None:
+            self.ledger["last_remaining_credits"] = remaining
+        self.ledger["requests_made"] += 1
+        self.ledger["calls"].append({"url": url, "outcome": outcome,
+                                     "request_cost": cost_text,
+                                     "conservative_charge": charged,
+                                     "remaining_credits": remaining})
+        self.save_ledger()
+
+    def cache_path(self, url: str) -> Path:
+        key = hashlib.sha256(f"{url}\nrender={self.render}\noutput=markdown".encode("utf-8")).hexdigest()
+        return CACHE_DIR / f"{key}.json"
 
     def delay(self, host: str):
         lock = self.domain_locks.setdefault(host, threading.Lock())
@@ -248,53 +336,62 @@ class PoliteFetcher:
         return True, "allowed by robots.txt or no robots file"
 
     def get(self, url: str) -> tuple[str | None, str, str]:
-        current = url
-        for redirect in range(4):
-            allowed, reason = self.robots_allowed(current)
-            if not allowed:
-                return None, "blocked_robots", reason
-            host = urlsplit(current).netloc.lower()
-            response = None
-            for attempt in range(1, 3):
-                self.delay(host)
-                try:
-                    response = self.session.get(current, timeout=TIMEOUT, allow_redirects=False)
-                except requests.RequestException as exc:
-                    if attempt == 1:
-                        time.sleep(1.0 + random.uniform(0.0, 0.5))
-                        continue
-                    return None, "error", f"request failed after one bounded retry: {type(exc).__name__}"
-                if response.status_code >= 500 and attempt == 1:
-                    retry_after = response.headers.get("Retry-After", "")
-                    try:
-                        wait = min(10.0, max(0.0, float(retry_after))) if retry_after else 1.0 + random.uniform(0.0, 0.5)
-                    except ValueError:
-                        wait = 1.0 + random.uniform(0.0, 0.5)
-                    time.sleep(wait)
-                    continue
-                break
-            if response is None:
-                return None, "error", "request failed without a response"
-            if response.is_redirect:
-                location = response.headers.get("Location")
-                if not location:
-                    return None, "error", "redirect did not include a Location"
-                current = urljoin(current, location)
-                continue
-            if response.status_code in (403, 429, 401, 402):
-                label = "rate_limited" if response.status_code == 429 else "inaccessible"
-                return None, label, f"HTTP {response.status_code}; not retried or bypassed"
-            if response.status_code in (404, 410):
-                return None, "not_found", f"HTTP {response.status_code}"
-            if response.status_code >= 500:
-                return None, "error", f"HTTP {response.status_code}; not retried"
-            if not response.ok:
-                return None, "error", f"HTTP {response.status_code}"
-            content_type = response.headers.get("Content-Type", "").lower()
-            if "html" not in content_type and "json" not in content_type and "text/" not in content_type:
-                return None, "error", f"non-text content type: {content_type or 'unknown'}"
-            return response.text[:2_000_000], "retrieved", response.url
-        return None, "error", "too many redirects"
+        allowed, reason = self.robots_allowed(url)
+        if not allowed:
+            return None, "blocked_robots", reason
+
+        cache_file = self.cache_path(url)
+        if cache_file.exists():
+            try:
+                cached = json.loads(cache_file.read_text(encoding="utf-8"))
+                content = cached.get("content")
+                if isinstance(content, str) and content:
+                    return content, "retrieved", "loaded successful response from local URL cache"
+            except (OSError, ValueError, AttributeError):
+                pass
+
+        # Scrape.do is the network endpoint for each page fetch, so pace by
+        # that host even when target domains differ.
+        self.delay("api.scrape.do")
+        self.ensure_budget()
+        try:
+            response = fetch_page(url, render=self.render, output="markdown")
+        except ScrapeDoHTTPError as exc:
+            self.record_api_call(url, f"HTTP {exc.status_code}", {
+                "request_cost": exc.request_cost,
+                "remaining_credits": exc.remaining_credits,
+            })
+            cost = exc.request_cost if exc.request_cost is not None else "unknown"
+            balance = exc.remaining_credits if exc.remaining_credits is not None else "unknown"
+            if exc.status_code == 429:
+                return None, "rate_limited", f"HTTP 429; not retried; request cost={cost}; remaining credits={balance}"
+            if exc.status_code in (401, 402, 403):
+                return None, "inaccessible", f"HTTP {exc.status_code}; not retried; request cost={cost}; remaining credits={balance}"
+            if exc.status_code in (404, 410):
+                return None, "not_found", f"HTTP {exc.status_code}; request cost={cost}; remaining credits={balance}"
+            if exc.status_code == 400 and url.rstrip("/") == "https://docs.stripe.com/api":
+                return None, "error", f"HTTP 400; Scrape.do explicitly disallowed this target; URL not retried; request cost={cost}; remaining credits={balance}"
+            if exc.status_code == 400:
+                detail = exc.diagnostic_body[:220] if exc.diagnostic_body else "no response detail"
+                return None, "error", f"HTTP 400; {detail}; URL not retried; request cost={cost}; remaining credits={balance}"
+            return None, "error", f"Scrape.do returned HTTP {exc.status_code}"
+        except ScrapeDoError as exc:
+            self.record_api_call(url, str(exc), {"request_cost": None, "remaining_credits": None})
+            return None, "error", str(exc)
+
+        content = response.text[:2_000_000]
+        if not content.strip():
+            self.record_api_call(url, "empty response", scrape_do_diagnostics(response.headers))
+            return None, "error", "Scrape.do returned an empty page body"
+        diagnostics = scrape_do_diagnostics(response.headers)
+        self.record_api_call(url, f"HTTP {response.status_code}", diagnostics)
+        cost = diagnostics["request_cost"] if diagnostics["request_cost"] is not None else "unknown"
+        balance = diagnostics["remaining_credits"] if diagnostics["remaining_credits"] is not None else "unknown"
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = cache_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"url": url, "render": self.render, "content": content}, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(cache_file)
+        return content, "retrieved", f"HTTP {response.status_code}; request cost={cost}; remaining credits={balance}"
 
 
 def parse_html(text: str) -> MainContentParser:
@@ -303,6 +400,38 @@ def parse_html(text: str) -> MainContentParser:
         parser.feed(text)
     except Exception:
         pass
+    return parser
+
+
+def parse_markdown(text: str) -> MainContentParser:
+    """Adapt Scrape.do Markdown into the same light parser shape used by extraction."""
+    parser = MainContentParser()
+    blocks: list[str] = []
+    current: list[str] = []
+    in_code = False
+    title_set = False
+    link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+    for line in text.splitlines():
+        if line.strip().startswith("```") or line.strip().startswith("~~~"):
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
+        heading = re.match(r"^\s{0,3}#{1,6}\s+(.*)$", line)
+        if heading and not title_set:
+            parser.title_parts.append(re.sub(r"[*_`]", "", heading.group(1)).strip())
+            title_set = True
+        if not line.strip():
+            if current:
+                blocks.append("\n".join(current).strip())
+                current = []
+            continue
+        current.append(line.strip())
+        for match in link_pattern.finditer(line):
+            parser.links.append((match.group(2).strip("<>"), match.group(1)))
+    if current:
+        blocks.append("\n".join(current).strip())
+    parser.blocks = [block for block in blocks if block]
     return parser
 
 
@@ -443,26 +572,37 @@ def source_type_for(url: str) -> str:
     return "public product page"
 
 
-def process_app(app: dict[str, str], record: dict, fetcher: PoliteFetcher, records: list[dict], index: int, output: Path):
-    attempted = {str(item["url"]) for item in record.get("source_attempts", [])}
+def process_app(app: dict[str, str], record: dict, fetcher: PoliteFetcher, records: list[dict], index: int, output: Path, max_pages: int = MAX_PAGES_PER_APP) -> bool:
+    attempted = scrapedo_attempted(record)
     seed = SITE_URLS.get(app["app_name"])
     if seed and seed not in record.get("source_queue", []) and seed not in attempted:
-        record["source_queue"].append(seed)
+        if app["app_name"] in BLOCKED_SOURCE_LIMITATIONS:
+            record["source_queue"].insert(0, seed)
+        else:
+            record["source_queue"].append(seed)
     pages_done = 0
-    while record["source_queue"] and pages_done < MAX_PAGES_PER_APP:
-        url = str(record["source_queue"].pop(0))
+    while record["source_queue"] and pages_done < max_pages:
+        url = urldefrag(str(record["source_queue"].pop(0)))[0]
         if url in attempted:
             continue
-        content, status, note = fetcher.get(url)
-        attempt = {"url": url, "status": status, "note": note if status != "retrieved" else None}
+        try:
+            content, status, note = fetcher.get(url)
+        except ResearchBudgetReached as exc:
+            record["source_queue"].insert(0, url)
+            records[index] = record
+            save(output, records)
+            print(f"Budget stop: {exc}; current app and remaining queue saved.")
+            return False
+        attempt = {"url": url, "status": status,
+                   "note": f"Scrape.do: {note}" if note else "Scrape.do: request completed"}
         record["source_attempts"].append(attempt)
         attempted.add(url)
         pages_done += 1
         if status == "retrieved" and content:
-            parser = parse_html(content)
+            parser = parse_markdown(content)
             if not app_matches(app["app_name"], parser, url):
                 attempt["status"] = "error"
-                attempt["note"] = "Page title/body did not identify the requested app; page content not used as evidence."
+                attempt["note"] = "Scrape.do: page title/body did not identify the requested app; page content not used as evidence."
             else:
                 extract_from_page(app["app_name"], record, url, parser)
                 base_host = urlsplit(url).netloc.lower()
@@ -476,7 +616,7 @@ def process_app(app: dict[str, str], record: dict, fetcher: PoliteFetcher, recor
                                 links.append(candidate)
                 record["source_queue"].extend(links[:8])
                 record["research_status"] = "partial" if record["evidence"] else "not_researched"
-                record["research_note"] = "Free public-page extraction only; all extracted claims remain unverified."
+                record["research_note"] = "Scrape.do public-page extraction; all extracted claims remain unverified."
         else:
             record["research_note"] = f"Latest public source attempt: {status} ({note})."
         # Persist after each URL so interruption never loses completed work.
@@ -496,21 +636,95 @@ def process_app(app: dict[str, str], record: dict, fetcher: PoliteFetcher, recor
     record["last_checked"] = date.today().isoformat()
     records[index] = record
     save(output, records)
+    return True
+
+
+def record_known_access_limitations(records: list[dict], baseline_names: set[str], output: Path):
+    """Store the user-reported Stripe block without retrying the blocked URL."""
+    for record in records:
+        app_name = record.get("app_name")
+        if str(app_name).casefold() in baseline_names or app_name not in BLOCKED_SOURCE_LIMITATIONS:
+            continue
+        blocked_url, explanation = BLOCKED_SOURCE_LIMITATIONS[app_name]
+        record["source_queue"] = [
+            item for item in record.get("source_queue", [])
+            if str(item).rstrip("/") != blocked_url.rstrip("/")
+        ]
+        already_noted = any(
+            str(item.get("url", "")).rstrip("/") == blocked_url.rstrip("/")
+            and "explicitly disallowed" in str(item.get("note") or "")
+            for item in record.get("source_attempts", [])
+        )
+        if not already_noted:
+            record.setdefault("source_attempts", []).append({
+                "url": blocked_url,
+                "status": "error",
+                "note": f"Scrape.do: {explanation}",
+            })
+        alternate = SITE_URLS.get(app_name)
+        if alternate:
+            record["source_queue"] = [item for item in record["source_queue"] if str(item) != alternate]
+            record["source_queue"].insert(0, alternate)
+    save(output, records)
+
+
+def reschedule_html_parameter_failures(records: list[dict], baseline_names: set[str], output: Path):
+    """Retry only prior generic HTML-output 400s once using Markdown output."""
+    explicitly_blocked = {
+        url.rstrip("/") for url, _ in BLOCKED_SOURCE_LIMITATIONS.values()
+    }
+    for record in records:
+        if str(record.get("app_name", "")).casefold() in baseline_names:
+            continue
+        for attempt in record.get("source_attempts", []):
+            url = str(attempt.get("url", ""))
+            note = str(attempt.get("note") or "")
+            if (url.rstrip("/") in explicitly_blocked
+                    or note != "Scrape.do: Scrape.do returned HTTP 400"):
+                continue
+            attempt["note"] = (
+                "Scrape.do: prior output=html request returned HTTP 400; "
+                "retrying once with Markdown output after parameter correction."
+            )
+            record["source_queue"] = [item for item in record.get("source_queue", []) if str(item) != url]
+            record["source_queue"].insert(0, url)
+            break
+    save(output, records)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Free, polite extraction from public app pages; no API key or Firecrawl.")
-    parser.add_argument("--limit", type=int, default=None, help="Maximum new apps to attempt; default processes every remaining assignment app.")
+    parser = argparse.ArgumentParser(description="Polite public-page research through Scrape.do; calls are made only when this script is run.")
+    parser.add_argument("--limit", type=int, default=None, help="Maximum non-baseline apps to process in this run.")
     parser.add_argument("--output", default=str(OUTPUT), help="Separate resumable output; existing v2 is read-only.")
     parser.add_argument("--max-pages-per-app", type=int, default=MAX_PAGES_PER_APP)
+    parser.add_argument("--max-credits", type=float, default=DEFAULT_CREDIT_CAP, help="Credit cap for this run and its persistent ledger (maximum 150).")
+    parser.add_argument("--max-requests", type=int, default=100, help="Hard maximum Scrape.do calls for this output ledger (maximum 150).")
+    parser.add_argument("--skip-app", action="append", default=[], help="Skip an app name; may be supplied more than once.")
+    parser.add_argument("--include-app", action="append", default=[], help="Only process this app name; may be supplied more than once.")
+    parser.add_argument("--ledger", default=None, help="Optional separate credit ledger path for a bounded continuation run.")
+    parser.add_argument("--render", action="store_true", help="Request JavaScript rendering for this run; may use more Scrape.do credits.")
     args = parser.parse_args()
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
     if args.max_pages_per_app < 1 or args.max_pages_per_app > 10:
         parser.error("--max-pages-per-app must be between 1 and 10")
+    if not 0 < args.max_credits <= DEFAULT_CREDIT_CAP:
+        parser.error("--max-credits must be positive and no greater than 150")
+    if not 1 <= args.max_requests <= DEFAULT_CREDIT_CAP:
+        parser.error("--max-requests must be between 1 and 150")
+    try:
+        get_token()
+    except ScrapeDoError as exc:
+        print(f"ERROR: {exc}")
+        return 2
     output = Path(args.output)
     if not output.is_absolute():
         output = PROJECT_ROOT / output
+    ledger_path = Path(args.ledger) if args.ledger else output.with_name(f"{output.stem}_budget.json")
+    if not ledger_path.is_absolute():
+        ledger_path = PROJECT_ROOT / ledger_path
+    fetcher = PoliteFetcher(render=args.render, credit_cap=args.max_credits,
+                            max_requests=args.max_requests, ledger_path=ledger_path)
     with (PROJECT_ROOT / "data" / "apps.csv").open("r", encoding="utf-8-sig", newline="") as f:
         apps = list(csv.DictReader(f))
     if output.exists():
@@ -518,41 +732,77 @@ def main() -> int:
         if not isinstance(records, list):
             raise ValueError("Output must be a JSON list")
     else:
-        # Copy existing v2 records byte-for-byte at the object level; do not
-        # enrich/rewrite their 15 separate human-supported evidence entries.
+        # New outputs begin with the baseline if the caller has not supplied
+        # an existing full-list copy. Existing records are never discarded.
         records = json.loads(BASELINE_V2.read_text(encoding="utf-8"))
         save(output, records)
     by_name = {r["app_name"].casefold(): i for i, r in enumerate(records)}
     baseline_names = {r["app_name"].casefold() for r in json.loads(BASELINE_V2.read_text(encoding="utf-8"))}
+    record_known_access_limitations(records, baseline_names, output)
+    reschedule_html_parameter_failures(records, baseline_names, output)
     resumed = []
     for app in apps:
         key = app["app_name"].casefold()
         if key in by_name and key not in baseline_names:
             record = records[by_name[key]]
-            attempted_urls = {str(a["url"]) for a in record.get("source_attempts", [])}
-            if any(str(url) not in attempted_urls for url in record.get("source_queue", [])):
+            attempted_urls = scrapedo_attempted(record)
+            seed = SITE_URLS.get(app["app_name"])
+            pending_queue = any(str(url) not in attempted_urls for url in record.get("source_queue", []))
+            pending_seed = bool(seed and seed not in attempted_urls)
+            if pending_queue or pending_seed:
                 resumed.append((app, record, by_name[key]))
     missing = [app for app in apps if app["app_name"].casefold() not in by_name]
-    if args.limit is not None:
-        missing = missing[:args.limit]
     tasks = resumed + [(app, prepare_record(app, None), -1) for app in missing]
+    skip_apps = {name.casefold() for name in args.skip_app}
+    tasks = [task for task in tasks if task[0]["app_name"].casefold() not in skip_apps]
+    include_apps = {name.casefold() for name in args.include_app}
+    if include_apps:
+        known_apps = {row["app_name"].casefold() for row in apps}
+        unknown = include_apps - known_apps
+        if unknown:
+            parser.error(f"unknown --include-app value(s): {', '.join(sorted(unknown))}")
+        tasks = [task for task in tasks if task[0]["app_name"].casefold() in include_apps]
+    if args.limit is not None:
+        tasks = tasks[:args.limit]
     if not tasks:
         print("No missing assignment apps to process.")
         return 0
-    fetcher = PoliteFetcher()
-    print(f"Queued {len(resumed)} apps to resume and {len(missing)} new apps. One request at a time; {PER_HOST_DELAY:.1f}s per host; robots enforced; no Firecrawl/API key.")
+    render_label = "enabled" if args.render else "disabled"
+    print(f"Queued {len(tasks)} apps. Credit cap={args.max_credits:g}; request cap={args.max_requests}; already spent={fetcher.ledger['credits_spent']:g}; rendering {render_label}; cache and output are resumable.")
+    completed_apps = []
+    stopped_for_budget = False
     for position, (app, record, index) in enumerate(tasks, 1):
         if index < 0:
             records.append(record)
             index = len(records) - 1
             by_name[app["app_name"].casefold()] = index
             save(output, records)
-        print(f"[{position}/{len(missing)}] {app['app_name']}")
-        process_app(app, record, fetcher, records, index, output)
+        print(f"[{position}/{len(tasks)}] {app['app_name']}")
+        if app["app_name"] == "YouTube Transcript":
+            # Avoid a public sign-up route; prioritize the official API docs.
+            record["source_queue"] = [
+                item for item in record.get("source_queue", [])
+                if not re.search(r"/(?:auth/)?sign[-_]up(?:/|\?|$)", str(item), re.I)
+            ]
+            api_docs = "https://youtubetranscript.dev/api-docs"
+            record["source_queue"] = [item for item in record["source_queue"] if urldefrag(str(item))[0] != api_docs]
+            record["source_queue"].insert(0, api_docs)
+            records[index] = record
+            save(output, records)
+        continued = process_app(app, record, fetcher, records, index, output, args.max_pages_per_app)
+        if not continued:
+            stopped_for_budget = True
+            break
+        if any(str(item.get("note") or "").startswith("Scrape.do:") for item in record.get("source_attempts", [])):
+            completed_apps.append(app["app_name"])
         print(f"  status={record['research_status']}; evidence={len(record['evidence'])}; page_attempts={len(record['source_attempts'])}")
     for record in records:
         AppResearchRecord.model_validate(record)
     print(f"Saved {len(records)} records to {output}")
+    print(f"Scrape.do calls={fetcher.ledger['requests_made']}; request-cost headers sum={fetcher.ledger['reported_credits_spent']:g}; conservative budget charges={fetcher.ledger['credits_spent']:g}; unknown-cost calls={fetcher.ledger['unknown_cost_requests']}.")
+    print(f"Apps with a Scrape.do attempt this run={len(set(completed_apps))}; queued apps remaining={max(0, len(tasks) - len(set(completed_apps)))}.")
+    if stopped_for_budget:
+        print("Stopped at budget cap; rerunning with the same output resumes from the saved queues and cache.")
     return 0
 
 
