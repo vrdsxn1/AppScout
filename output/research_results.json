@@ -1,0 +1,209 @@
+[
+  {
+    "app_name": "Salesforce",
+    "category": "CRM and Sales",
+    "description": "Salesforce provides REST and GraphQL APIs for accessing and manipulating Salesforce data, plus official hosted and developer MCP servers for AI clients.",
+    "auth_methods": [
+      "OAuth 2.0 through an External Client App or Connected App, returning access and refresh tokens",
+      "For hosted MCP setup: OAuth 2.0 with configured scopes, PKCE, and JWT-based tokens"
+    ],
+    "access_model": "Self-serve Developer Edition and free trials are available, while production API access is edition- and license-dependent; Enterprise, Performance, Unlimited, and Developer orgs have API access enabled by default, Professional requires an API-access add-on, and an administrator/user must configure API permissions and OAuth apps.",
+    "api_type": "REST and GraphQL",
+    "api_breadth": "REST supports API-version and limit discovery, object metadata, create/read/update/delete records, query, and search; Salesforce also documents GraphQL field selection, resource aggregation, schema introspection, and record mutations. API usage is subject to org-level concurrency and rolling 24-hour allocations.",
+    "mcp_status": "Official Salesforce Hosted MCP Servers are available, including SObject read/query and CRUD-oriented servers, and Salesforce also documents a Salesforce DX MCP Server (Beta) with more than 60 developer/DX tools. Hosted servers are disabled by default and require administrator activation and OAuth client setup.",
+    "buildability": "build_with_restrictions",
+    "blockers": [
+      "A Salesforce org and a user with API Enabled permission are required; Professional Edition requires an API-access add-on.",
+      "OAuth application setup and appropriate scopes/permissions are required; hosted MCP setup requires an administrator or equivalent permission to create the External Client App.",
+      "API calls are subject to org-level concurrency and daily/24-hour allocations, and additional API capacity may require purchased add-ons or licenses.",
+      "Hosted MCP servers are disabled by default and must be enabled by an administrator."
+    ],
+    "evidence": [
+      {
+        "claim": "Salesforce REST API documentation says the API provides programmatic access to Salesforce data and identifies resources for metadata, CRUD, query, search, and limits.",
+        "url": "https://developer.salesforce.com/docs/platform/api-rest/guide/intro-rest.html",
+        "source_type": "official API docs"
+      },
+      {
+        "claim": "Salesforce requires an org and user with API access; API access is enabled by default in Enterprise, Performance, Unlimited, and Developer orgs, while Professional can add it as an add-on, and the user needs API Enabled permission.",
+        "url": "https://developer.salesforce.com/docs/platform/api-rest/guide/intro-rest-compatible-editions.html",
+        "source_type": "official API access requirements"
+      },
+      {
+        "claim": "Salesforce REST clients must use an External Client App or Connected App with an OAuth 2.0 authorization flow; OAuth flows issue access tokens and can issue refresh tokens.",
+        "url": "https://developer.salesforce.com/docs/platform/api-rest/guide/intro-oauth-and-connected-apps.html",
+        "source_type": "official authentication docs"
+      },
+      {
+        "claim": "Salesforce GraphQL API is documented as available in Enterprise, Performance, Unlimited, and Developer editions and supports field selection, aggregation, schema introspection, and UI-API-enabled sObjects.",
+        "url": "https://developer.salesforce.com/docs/platform/graphql/guide/intro-graphql-api.html",
+        "source_type": "official GraphQL API docs"
+      },
+      {
+        "claim": "Salesforce GraphQL documentation includes record mutations for creating, updating, or deleting record data.",
+        "url": "https://developer.salesforce.com/docs/platform/graphql/guide/mutations-intro.html",
+        "source_type": "official GraphQL API docs"
+      },
+      {
+        "claim": "Salesforce documents org-level API concurrency and rolling 24-hour allocations, including 15,000 calls for Developer Edition and license-based allocations for paid editions; extra capacity can be purchased or obtained through additional licenses.",
+        "url": "https://developer.salesforce.com/docs/platform/salesforce-app-limits-cheatsheet/guide/salesforce-app-limits-platform-api.html",
+        "source_type": "official API limits documentation"
+      },
+      {
+        "claim": "Salesforce's Sales pricing page lists a free 30-day Sales Cloud trial, paid editions, and a Web Services API line item showing an additional $25 USD/user/month in the comparison table.",
+        "url": "https://www.salesforce.com/sales/pricing/",
+        "source_type": "official pricing page"
+      },
+      {
+        "claim": "Salesforce provides standard hosted MCP servers, including SObject All, SObject Reads, SObject Mutations, and SObject Deletes; they are disabled by default, require administrator enablement, and enforce per-user authentication and Salesforce security controls.",
+        "url": "https://developer.salesforce.com/docs/platform/hosted-mcp-servers/references/reference/servers-reference.html",
+        "source_type": "official MCP documentation"
+      },
+      {
+        "claim": "Hosted MCP setup requires an External Client App, OAuth scopes, and security settings including PKCE and JWT-based tokens; System Administrator or equivalent permissions are needed to create the app.",
+        "url": "https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/setup-overview.html",
+        "source_type": "official MCP authentication documentation"
+      },
+      {
+        "claim": "Salesforce says hosted MCP servers are disabled by default and must be enabled by an administrator before clients can connect.",
+        "url": "https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/activate-mcp-servers.html",
+        "source_type": "official MCP setup documentation"
+      },
+      {
+        "claim": "Salesforce documents a Salesforce DX MCP Server (Beta) with more than 60 MCP tools for developer experience tasks and Salesforce org interaction.",
+        "url": "https://developer.salesforce.com/docs/platform/sfdx-dev/guide/sfdx-dev-mcp.html",
+        "source_type": "official MCP documentation"
+      },
+      {
+        "claim": "The assignment lists Salesforce in the CRM and Sales category.",
+        "url": "https://composio.notion.site/AI-Product-Ops-Intern-The-take-home-assignment-391f261a6dfe80e9946bee899d3a3762",
+        "source_type": "assignment list"
+      }
+    ],
+    "confidence": "high",
+    "last_checked": "2026-11-23"
+  },
+  {
+    "app_name": "HubSpot",
+    "category": "CRM and Sales",
+    "description": "HubSpot provides a date-versioned REST API for CRM and other platform capabilities, a documented GraphQL interface for CRM/HubDB data, and an official remote MCP server for authorized CRM access.",
+    "auth_methods": [
+      "OAuth 2.0",
+      "Static authentication access tokens for single-account/private installations"
+    ],
+    "access_model": "Self-serve with free tools and paid tiers; API access is authenticated and availability/limits vary by app distribution, account subscription, scopes, and permissions.",
+    "api_type": "REST and GraphQL",
+    "api_breadth": "Broad, date-versioned REST API surface at api.hubapi.com, including CRM and other HubSpot platform APIs; GraphQL supports querying HubSpot CRM and HubDB data. Access is scope- and account-dependent, and API rate limits vary by distribution and subscription.",
+    "mcp_status": "Official integrations found: HubSpot Remote MCP server for CRM read/write access and a separate local Developer MCP server. The remote server requires an MCP connector and OAuth with PKCE; available tools and data depend on scopes, user permissions, subscription, and account configuration.",
+    "buildability": "build_with_restrictions",
+    "blockers": [
+      "Multi-account or Marketplace apps must use OAuth and require an OAuth backend to initiate authorization and manage token data.",
+      "Static authentication is limited to a single authorized account; private OAuth distribution is limited to a maximum of 10 allowlisted accounts.",
+      "API rate limits depend on account subscription and distribution; privately distributed apps on free or Starter plans are documented at 100 requests per 10 seconds per app and 250,000 requests per account per day.",
+      "Remote MCP access requires an OAuth connector with PKCE and is constrained by HubSpot user permissions, scopes, subscription, and account configuration."
+    ],
+    "evidence": [
+      {
+        "claim": "HubSpot documents OAuth for apps distributed to multiple accounts and static auth access tokens for apps installed in one account; OAuth uses Bearer authorization and static auth is configured for private distribution.",
+        "url": "https://developers.hubspot.com/docs/apps/developer-platform/build-apps/authentication/overview",
+        "source_type": "official authentication docs"
+      },
+      {
+        "claim": "HubSpot's API reference documents date-based API versions, the api.hubapi.com root, and REST-style endpoint paths such as CRM object endpoints.",
+        "url": "https://developers.hubspot.com/docs/api-reference/latest/overview",
+        "source_type": "official API reference"
+      },
+      {
+        "claim": "HubSpot documents GraphQL queries for HubSpot CRM and HubDB data and use of GraphQL queries in integrations.",
+        "url": "https://developers.hubspot.com/docs/cms/start-building/features/data-driven-content/graphql/query-hubspot-data-using-graphql",
+        "source_type": "official GraphQL documentation"
+      },
+      {
+        "claim": "HubSpot's official pricing page offers free foundational tools at $0/month with no credit card required and paid Starter tiers.",
+        "url": "https://www.hubspot.com/pricing/crm",
+        "source_type": "official pricing page"
+      },
+      {
+        "claim": "HubSpot documents its official remote MCP server, requiring an MCP connector and OAuth with PKCE; it supports CRM records and other data with read/write availability governed by permissions and account conditions.",
+        "url": "https://developers.hubspot.com/docs/apps/developer-platform/build-apps/integrate-with-the-remote-hubspot-mcp-server",
+        "source_type": "official MCP documentation"
+      },
+      {
+        "claim": "HubSpot documents API usage limits, including 100 requests per 10 seconds per privately distributed app and 250,000 requests per account per day for Free and Starter accounts.",
+        "url": "https://developers.hubspot.com/docs/developer-tooling/platform/usage-guidelines",
+        "source_type": "official API limits documentation"
+      },
+      {
+        "claim": "The assignment lists HubSpot in the CRM and Sales category.",
+        "url": "https://composio.notion.site/AI-Product-Ops-Intern-The-take-home-assignment-391f261a6dfe80e9946bee899d3a3762",
+        "source_type": "assignment list"
+      }
+    ],
+    "confidence": "high",
+    "last_checked": "2026-11-23"
+  },
+  {
+    "app_name": "Pipedrive",
+    "category": "CRM and Sales",
+    "description": "Pipedrive is a CRM platform with a REST API for integrating CRM data, sales processes, webhooks and developer apps.",
+    "auth_methods": [
+      "API token",
+      "OAuth 2.0"
+    ],
+    "access_model": "Self-serve paid SaaS with a free 14-day trial; API access is included with every plan.",
+    "api_type": "REST",
+    "api_breadth": "Broad CRM coverage: the documented API includes activities, deals, leads, organizations, persons, products, projects, pipelines, stages, users, webhooks and other CRM resources. API v2 is available for activities, deals, deal followers, deal products, fields, organizations, organization followers, persons, person followers, products, product followers, product variations, pipelines/stages, user followers and search; the v2 rollout is gradual.",
+    "mcp_status": "Official native Pipedrive MCP server found. It connects with AI assistants such as ChatGPT and Claude through OAuth and supports querying and updating CRM records and workflows; Pipedrive states it is available to customers on all plans.",
+    "buildability": "build_now",
+    "blockers": [],
+    "evidence": [
+      {
+        "claim": "Pipedrive's official API reference describes a RESTful API, JSON output, API-token validation, and a broad endpoint set including activities, deals, leads, organizations, persons, products, projects, users and webhooks.",
+        "url": "https://developers.pipedrive.com/docs/api/v1",
+        "source_type": "official API docs"
+      },
+      {
+        "claim": "The official API reference says an API token can be obtained manually from the Pipedrive app.",
+        "url": "https://pipedrive.readme.io/docs/how-to-find-the-api-token",
+        "source_type": "official authentication docs"
+      },
+      {
+        "claim": "The official OAuth documentation requires OAuth 2.0 for Marketplace apps and documents authorization-code and token endpoints, including access and refresh tokens.",
+        "url": "https://developers.pipedrive.com/docs/api/v1/Oauth",
+        "source_type": "official authentication docs"
+      },
+      {
+        "claim": "Pipedrive states that every plan includes a free API token and access to its RESTful API; the page also describes public, unlisted and private app types.",
+        "url": "https://www.pipedrive.com/en/features/crm-api",
+        "source_type": "official API access page"
+      },
+      {
+        "claim": "Pipedrive's pricing page advertises a free 14-day trial with no credit card required and lists paid plans.",
+        "url": "https://www.pipedrive.com/en/pricing",
+        "source_type": "official pricing page"
+      },
+      {
+        "claim": "Pipedrive's official API v2 documentation lists the currently available v2 resource APIs and says v2 will gradually replace corresponding v1 APIs, with at least a one-year migration grace period for deprecated v1 APIs.",
+        "url": "https://pipedrive.readme.io/docs/pipedrive-api-v2",
+        "source_type": "official API docs"
+      },
+      {
+        "claim": "Pipedrive's official MCP page identifies an official connector in Claude and ChatGPT, says setup uses secure OAuth, and describes searching, creating and updating CRM records and automating workflows.",
+        "url": "https://www.pipedrive.com/en/features/mcp-server",
+        "source_type": "official MCP documentation"
+      },
+      {
+        "claim": "Pipedrive's official newsroom announcement says its native MCP server is built and maintained by Pipedrive, works with ChatGPT, Claude and other MCP-compatible tools, uses secure OAuth, and is available to customers on all Pipedrive plans.",
+        "url": "https://www.pipedrive.com/en/newsroom/pipedrive-launches-native-mcp-server-bringing-crm-workflows-directly-into-ai-assistants",
+        "source_type": "official MCP announcement"
+      },
+      {
+        "claim": "The assignment lists Pipedrive in the CRM and Sales category.",
+        "url": "https://composio.notion.site/AI-Product-Ops-Intern-The-take-home-assignment-391f261a6dfe80e9946bee899d3a3762",
+        "source_type": "assignment list"
+      }
+    ],
+    "confidence": "high",
+    "last_checked": "2026-11-23"
+  }
+]

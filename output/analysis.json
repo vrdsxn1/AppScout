@@ -1,0 +1,182 @@
+{
+  "assignment_total": 100,
+  "record_total": 100,
+  "researched_total": 46,
+  "partial_total": 33,
+  "blocked_total": 14,
+  "not_researched_total": 40,
+  "unresearched_total": 54,
+  "apps_with_usable_evidence": 46,
+  "apps_with_evidence": 47,
+  "coverage_percent": 46.0,
+  "category_coverage": [
+    {
+      "category": "AI, Research and Media-native",
+      "total": 10,
+      "researched": 3,
+      "remaining": 7
+    },
+    {
+      "category": "CRM and Sales",
+      "total": 10,
+      "researched": 10,
+      "remaining": 0
+    },
+    {
+      "category": "Communications and Messaging",
+      "total": 10,
+      "researched": 2,
+      "remaining": 8
+    },
+    {
+      "category": "Data, SEO and Scraping",
+      "total": 10,
+      "researched": 2,
+      "remaining": 8
+    },
+    {
+      "category": "Developer, Infra and Data platforms",
+      "total": 10,
+      "researched": 9,
+      "remaining": 1
+    },
+    {
+      "category": "Ecommerce",
+      "total": 10,
+      "researched": 6,
+      "remaining": 4
+    },
+    {
+      "category": "Finance and Fintech",
+      "total": 10,
+      "researched": 1,
+      "remaining": 9
+    },
+    {
+      "category": "Marketing, Ads, Email and Social",
+      "total": 10,
+      "researched": 2,
+      "remaining": 8
+    },
+    {
+      "category": "Productivity and Project Management",
+      "total": 10,
+      "researched": 4,
+      "remaining": 6
+    },
+    {
+      "category": "Support and Helpdesk",
+      "total": 10,
+      "researched": 7,
+      "remaining": 3
+    }
+  ],
+  "field_status": {
+    "description": {
+      "no field-linked evidence": 13,
+      "explicitly unknown / unclear": 80,
+      "evidence present; unverified": 7
+    },
+    "auth_methods": {
+      "human sample supported": 3,
+      "no field-linked evidence": 27,
+      "not established in this pass": 54,
+      "evidence present; unverified": 16
+    },
+    "access_model": {
+      "human sample supported": 3,
+      "no field-linked evidence": 9,
+      "explicitly unknown / unclear": 84,
+      "evidence present; unverified": 4
+    },
+    "api_type": {
+      "human sample supported": 3,
+      "no field-linked evidence": 10,
+      "explicitly unknown / unclear": 76,
+      "evidence present; unverified": 11
+    },
+    "api_breadth": {
+      "human sample supported": 3,
+      "no field-linked evidence": 10,
+      "explicitly unknown / unclear": 71,
+      "evidence present; unverified": 16
+    },
+    "mcp_status": {
+      "human sample supported": 3,
+      "no field-linked evidence": 10,
+      "explicitly unknown / unclear": 84,
+      "evidence present; unverified": 3
+    },
+    "buildability": {
+      "no field-linked evidence": 13,
+      "explicitly unknown / unclear": 87
+    },
+    "blockers": {
+      "no field-linked evidence": 29,
+      "not established in this pass": 54,
+      "evidence present; unverified": 17
+    }
+  },
+  "auth_families": {
+    "OAuth": 16,
+    "API/access token": 19,
+    "HTTP Basic": 4
+  },
+  "access_characteristics": {
+    "Self-serve, free, or trial mentioned": 14,
+    "Paid plan or subscription mentioned": 13,
+    "Admin or permission gate mentioned": 4,
+    "Unknown / unclear": 84,
+    "Not categorized": 1
+  },
+  "api_surfaces": {
+    "REST": 19,
+    "REST + GraphQL": 2,
+    "Unknown / unclear": 76,
+    "GraphQL": 3
+  },
+  "buildability": {
+    "build_with_restrictions": 12,
+    "build_now": 1,
+    "unclear": 87
+  },
+  "blocker_topics": {
+    "Plan, edition, or paid add-on": 17,
+    "Permissions, scopes, or admin setup": 24,
+    "Rate limits or quotas": 13,
+    "Tenant/account setup": 18,
+    "Outreach or external approval": 3,
+    "MCP eligibility or setup": 17
+  },
+  "unknown_fields": {
+    "access_model": 84,
+    "description": 80,
+    "api_type": 76,
+    "api_breadth": 71,
+    "mcp_status": 84,
+    "buildability": 87
+  },
+  "evidence_total": 311,
+  "evidence_quality": {
+    "usable": 238,
+    "insufficient": 37,
+    "navigation": 22,
+    "page_shell": 14
+  },
+  "evidence_missing_excerpt": 0,
+  "evidence_missing_title": 0,
+  "evidence_missing_field": 134,
+  "human_verdicts": {
+    "supported": 15,
+    "not reviewed": 296
+  },
+  "automated_claim_status": {
+    "unverified": 311
+  },
+  "source_attempt_status": {
+    "retrieved": 253,
+    "error": 17,
+    "blocked_robots": 4,
+    "inaccessible": 6
+  }
+}
